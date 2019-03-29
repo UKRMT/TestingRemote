@@ -107,6 +107,7 @@ void setup() {
   pinMode(DigUp, INPUT);
   pinMode(OLEDDwn, INPUT);
   pinMode(OLEDUp, INPUT);
+  pinMode(LED, INPUT);
 
   //Serial.setDebugOutput(true);
   USE_SERIAL.setDebugOutput(true);
