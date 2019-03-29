@@ -8,16 +8,34 @@
  */
 
 #include <Arduino.h>
-
+#include <U8g2lib.h> //OLED
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
-
 #include <WebSocketsClient.h>
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+  #include <avr/power.h>
+#endif
+
 
 
 WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, LED, NEO_GRB + NEO_KHZ800);
+
+#define DigDwn 0
+#define DigUp 0
+#define OLEDUp 0
+#define OLEDDwn 0
+#define LED 0
 
 #define USE_SERIAL Serial
 
@@ -70,8 +88,26 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 void setup() {
+  
+  // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
+  #if defined (__AVR_ATtiny85__)
+    if (F_CPU == 16000000) clock_prescale_set(clock_div_1);
+  #endif
+  // End of trinket special code
+
+  strip.begin();
+  strip.setBrightness(50);
+  strip.show(); // Initialize all pixels to 'off'
+  //OLED Begin
+  u8g2.begin();
   // USE_SERIAL.begin(921600);
   USE_SERIAL.begin(115200);
+  
+  pinMode(DigDwn, INPUT);
+  pinMode(DigUp, INPUT);
+  pinMode(OLEDDwn, INPUT);
+  pinMode(OLEDUp, INPUT);
+  pinMode(LED, INPUT);
 
   //Serial.setDebugOutput(true);
   USE_SERIAL.setDebugOutput(true);
@@ -107,5 +143,11 @@ void setup() {
 }
 
 void loop() {
+  
+  u8g2.clearBuffer();					// clear the internal memory
+  u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
+  u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
+  u8g2.sendBuffer();					// transfer internal memory to the display
   webSocket.loop();
+  delay(1000);
 }
