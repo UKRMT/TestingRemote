@@ -31,11 +31,11 @@ WebSocketsClient webSocket;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, LED, NEO_GRB + NEO_KHZ800);
 
-#define DigDwn 0
-#define DigUp 0
-#define OLEDUp 0
-#define OLEDDwn 0
-#define LED 0
+#define DigDwn 33
+#define DigUp 27
+#define OLEDUp 12
+#define OLEDDwn 13
+#define LED 32
 
 #define USE_SERIAL Serial
 
@@ -117,7 +117,7 @@ void setup() {
   pinMode(DigUp, INPUT);
   pinMode(OLEDDwn, INPUT);
   pinMode(OLEDUp, INPUT);
-  pinMode(LED, INPUT);
+  pinMode(LED, OUTPUT);
 
   //Serial.setDebugOutput(true);
   USE_SERIAL.setDebugOutput(true);
