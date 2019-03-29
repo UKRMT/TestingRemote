@@ -39,6 +39,13 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, LED, NEO_GRB + NEO_KHZ800);
 
 #define USE_SERIAL Serial
 
+DynamicJsonBuffer jsonBuffer;
+
+  // You can use a String as your JSON input.
+  // WARNING: the content of the String will be duplicated in the JsonBuffer.
+  String input = "{'control.offloadmotorspeed': 0, 'control.digmotorspeed': 0, 'control.arm1speed': 0, 'control.motor1speed': 0, 'control.motor2speed': 0, 'control.motor3speed': 0, 'control.arm2speed': 0, 'control.motor4speed': 0}";
+  JsonObject& root = jsonBuffer.parseObject(input);
+
 void hexdump(const void *mem, uint32_t len, uint8_t cols = 16) {
   const uint8_t* src = (const uint8_t*) mem;
   USE_SERIAL.printf("\n[HEXDUMP] Address: 0x%08X len: 0x%X (%d)", (ptrdiff_t)src, len, len);
@@ -68,7 +75,10 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       USE_SERIAL.printf("[WSc] get text: %s\n", payload);
 
       // send message to server
-      // webSocket.sendTXT("message here");
+      //webSocket.sendTXT("message here");
+      //webSocket.sendTXT("message here");
+      //object["id"] = 'contro.motor1speed';
+      
       break;
     case WStype_BIN:
       USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
@@ -149,5 +159,8 @@ void loop() {
   u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
   u8g2.sendBuffer();					// transfer internal memory to the display
   webSocket.loop();
+  //To update Json: root["control.motorspeed1"] = RawJson(sensor);
+  /*unsigned long last update = millis();
+  */
   delay(1000);
 }
