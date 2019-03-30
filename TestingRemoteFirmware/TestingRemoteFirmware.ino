@@ -27,7 +27,7 @@
 #define DigUp 27
 #define OLEDUp 12
 #define OLEDDwn 21
-#define LED 32
+#define LED 5
 #define SLIDER_M1 A3
 #define SLIDER_M2 A2
 #define SLIDER_M3 A1
@@ -36,10 +36,10 @@
 #define SLIDER_OFL A4
 #define BATTERY A13
 
-#define UI_DISPLAY  500
-#define UI_LED      300
-#define UI_CONTROL  100
-#define UI_WS       250
+#define UI_DISPLAY  1000
+#define UI_LED      1000
+#define UI_CONTROL  200
+#define UI_WS       1000
 unsigned long lastDisplayUpdate = 0;
 unsigned long lastLEDUpdate = 0;
 unsigned long lastControlUpdate = 0;
@@ -117,9 +117,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 void setup() {
-  strip.begin();
-  strip.setBrightness(20);
-  strip.show(); // Initialize all pixels to 'off'
  
   // USE_SERIAL.begin(921600);
   USE_SERIAL.begin(115200);
@@ -151,7 +148,10 @@ void setup() {
     delay(100);
   }
 
-  
+  strip.begin();
+  strip.setBrightness(20);
+  strip.setPixelColor(0,strip.Color(0,0,0));
+  strip.show(); // Initialize all pixels to 'off'
 
   // server address, port and URL
   webSocket.begin("192.168.1.150",1234, "/");
@@ -165,6 +165,7 @@ void setup() {
   // initialize i2c adc
   ads.begin();
 
+  pinMode(LED, OUTPUT);
   pinMode(DigDwn, INPUT_PULLUP);
   pinMode(DigUp, INPUT_PULLUP);
   pinMode(OLEDDwn, INPUT_PULLUP);
@@ -203,23 +204,24 @@ void updateDisplay() {
 void updateLED() {
   // TODO: switch LED state
   if( wsConnected ){
-    //Serial.println("led should be green");
+    Serial.println("led should be green");
     strip.setPixelColor(0, strip.Color(0,150,0)); // Moderately bright green color.
     strip.show();
   } else {
+    Serial.println("led should be green");
     strip.setPixelColor(0, strip.Color(150,0,0)); // Moderately bright green color.
     strip.show();
   }
 }
 
 void updateControlValues() {
-  doc["control.motor1speed"] = ads.readADC_SingleEnded(0);
-  doc["control.motor2speed"] = ads.readADC_SingleEnded(1);
+  doc["control.motor1speed"] = ads.readADC_SingleEnded(0) >> 2;
+  doc["control.motor2speed"] = ads.readADC_SingleEnded(1) >> 2;
   doc["control.motor3speed"] = analogRead(A2);
   doc["control.motor4speed"] = analogRead(A3);
   
-  doc["control.offloadmotorspeed"] = ads.readADC_SingleEnded(2);
-  doc["control.digmotorspeed"] = analogRead(A4);
+  doc["control.offloadmotorspeed"] = analogRead(A4);
+  doc["control.digmotorspeed"] = ads.readADC_SingleEnded(2) >> 2;
   
   doc["control.arm1speed"] = digitalRead(DigDwn);
   doc["control.arm2speed"] = digitalRead(DigUp);
@@ -240,24 +242,24 @@ void sendState() {
 void loop() {
   unsigned long now = millis();
 
-  if( millis()-lastDisplayUpdate > UI_DISPLAY ){
+  if( now-lastDisplayUpdate > UI_DISPLAY ){
     updateDisplay();
-    lastDisplayUpdate = millis();
+    lastDisplayUpdate = now;
   } 
   
-  if( millis()-lastLEDUpdate > UI_LED ){
+  if( now-lastLEDUpdate > UI_LED ){
     updateLED();
-    lastLEDUpdate = millis();
+    lastLEDUpdate = now;
   } 
   
-  if( millis()-lastControlUpdate > UI_CONTROL ){
+  if( now-lastControlUpdate > UI_CONTROL ){
     updateControlValues();
-    lastControlUpdate = millis();
+    lastControlUpdate = now;
   } 
   
-  if( millis()-lastWSUpdate > UI_WS ){
+  if( now-lastWSUpdate > UI_WS ){
     sendState();
-    lastWSUpdate = millis();
+    lastWSUpdate = now;
   } 
   
   webSocket.loop();
