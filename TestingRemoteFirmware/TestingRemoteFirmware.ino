@@ -20,31 +20,49 @@
 #include <WiFiClientSecure.h>
 #include <WebSocketsClient.h>
 #include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
+#include <Adafruit_ADS1015.h>
+#include "dictionary.h"
 
+#define DigDwn 33
+#define DigUp 27
+#define OLEDUp 12
+#define OLEDDwn 21
+#define LED 32
+#define SLIDER_M1 A3
+#define SLIDER_M2 A2
+#define SLIDER_M3 A1
+#define SLIDER_M4 A0
+#define SLIDER_EXC A5
+#define SLIDER_OFL A4
+#define BATTERY A13
+
+#define UI_DISPLAY  500
+#define UI_LED      300
+#define UI_CONTROL  100
+#define UI_WS       250
+unsigned long lastDisplayUpdate = 0;
+unsigned long lastLEDUpdate = 0;
+unsigned long lastControlUpdate = 0;
+unsigned long lastWSUpdate = 0;
 
 
 WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, LED, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, LED, NEO_RGB + NEO_KHZ800);
 
-#define DigDwn 33
-#define DigUp 27
-#define OLEDUp 12
-#define OLEDDwn 13
-#define LED 32
+Adafruit_ADS1115 ads;
 
 #define USE_SERIAL Serial
 
-DynamicJsonBuffer jsonBuffer;
+// TODO: implement different display modes
+int displayMode = 0;
+int wsConnected = 0;
 
-  // You can use a String as your JSON input.
-  // WARNING: the content of the String will be duplicated in the JsonBuffer.
-  String input = "{'control.offloadmotorspeed': 0, 'control.digmotorspeed': 0, 'control.arm1speed': 0, 'control.motor1speed': 0, 'control.motor2speed': 0, 'control.motor3speed': 0, 'control.arm2speed': 0, 'control.motor4speed': 0}";
-  JsonObject& root = jsonBuffer.parseObject(input);
+DynamicJsonDocument doc(1024);
+DeserializationError error = deserializeJson(doc, DICTIONARY);
+
+
 
 void hexdump(const void *mem, uint32_t len, uint8_t cols = 16) {
   const uint8_t* src = (const uint8_t*) mem;
@@ -64,12 +82,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
       USE_SERIAL.printf("[WSc] Disconnected!\n");
+      wsConnected = 0;
       break;
     case WStype_CONNECTED:
       USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
-
+      wsConnected = 1;
       // send message to server when Connected
-      webSocket.sendTXT("subscribe comms.sent");
+      //webSocket.sendTXT("subscribe comms.sent");
       break;
     case WStype_TEXT:
       USE_SERIAL.printf("[WSc] get text: %s\n", payload);
@@ -98,26 +117,19 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 void setup() {
-  
-  // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
-  #if defined (__AVR_ATtiny85__)
-    if (F_CPU == 16000000) clock_prescale_set(clock_div_1);
-  #endif
-  // End of trinket special code
-
   strip.begin();
-  strip.setBrightness(50);
+  strip.setBrightness(20);
   strip.show(); // Initialize all pixels to 'off'
-  //OLED Begin
-  u8g2.begin();
+ 
   // USE_SERIAL.begin(921600);
   USE_SERIAL.begin(115200);
-  
-  pinMode(DigDwn, INPUT);
-  pinMode(DigUp, INPUT);
-  pinMode(OLEDDwn, INPUT);
-  pinMode(OLEDUp, INPUT);
-  pinMode(LED, OUTPUT);
+
+  //OLED Begin -- blank
+  u8g2.begin();
+  u8g2_prepare();
+  u8g2.clearBuffer();
+  u8g2.drawStr( 10, 10, "Booting...");
+  u8g2.sendBuffer();
 
   //Serial.setDebugOutput(true);
   USE_SERIAL.setDebugOutput(true);
@@ -139,28 +151,115 @@ void setup() {
     delay(100);
   }
 
+  
+
   // server address, port and URL
   webSocket.begin("192.168.1.150",1234, "/");
 
   // event handler
   webSocket.onEvent(webSocketEvent);
 
-  // use HTTP Basic Authorization this is optional remove if not needed
-  //webSocket.setAuthorization("user", "Password");
-
   // try ever 5000 again if connection has failed
   webSocket.setReconnectInterval(5000);
+
+  // initialize i2c adc
+  ads.begin();
+
+  pinMode(DigDwn, INPUT_PULLUP);
+  pinMode(DigUp, INPUT_PULLUP);
+  pinMode(OLEDDwn, INPUT_PULLUP);
+  pinMode(OLEDUp, INPUT_PULLUP);
+  pinMode(BATTERY, INPUT);
+  pinMode(SLIDER_M1, INPUT);
+  pinMode(SLIDER_M2, INPUT);
+  pinMode(SLIDER_M3, INPUT);
+  pinMode(SLIDER_M4, INPUT);
+  pinMode(SLIDER_EXC, INPUT);
+  pinMode(SLIDER_OFL, INPUT);
+}
+
+void u8g2_prepare(void) {
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.setFontRefHeightExtendedText();
+  u8g2.setDrawColor(1);
+  u8g2.setFontPosTop();
+  u8g2.setFontDirection(0);
+}
+
+void updateDisplay() {
+  // TODO: switch display mode
+  u8g2.clearBuffer();          // clear the internal memory
+  if( wsConnected ){
+    u8g2.drawStr(10,10,"Connected"); // write something to the internal memory
+  } else {
+    u8g2.drawStr(10,10,"Disconnected");
+  }
+  float battery = analogRead(BATTERY)/4095.0*2*3.3;
+  String message = "Batt: " + String(battery);
+  u8g2.drawStr(10,20,message.c_str());
+  u8g2.sendBuffer();          // transfer internal memory to the display
+}
+
+void updateLED() {
+  // TODO: switch LED state
+  if( wsConnected ){
+    //Serial.println("led should be green");
+    strip.setPixelColor(0, strip.Color(0,150,0)); // Moderately bright green color.
+    strip.show();
+  } else {
+    strip.setPixelColor(0, strip.Color(150,0,0)); // Moderately bright green color.
+    strip.show();
+  }
+}
+
+void updateControlValues() {
+  doc["control.motor1speed"] = ads.readADC_SingleEnded(0);
+  doc["control.motor2speed"] = ads.readADC_SingleEnded(1);
+  doc["control.motor3speed"] = analogRead(A2);
+  doc["control.motor4speed"] = analogRead(A3);
+  
+  doc["control.offloadmotorspeed"] = ads.readADC_SingleEnded(2);
+  doc["control.digmotorspeed"] = analogRead(A4);
+  
+  doc["control.arm1speed"] = digitalRead(DigDwn);
+  doc["control.arm2speed"] = digitalRead(DigUp);
+}
+
+void sendState() {
+  if( wsConnected ){
+    String message;
+    serializeJson(doc, message);
+    webSocket.sendTXT(message);
+  } else {
+    String message;
+    serializeJson(doc, message);
+    Serial.println(message);
+  }
 }
 
 void loop() {
+  unsigned long now = millis();
+
+  if( millis()-lastDisplayUpdate > UI_DISPLAY ){
+    updateDisplay();
+    lastDisplayUpdate = millis();
+  } 
   
-  u8g2.clearBuffer();					// clear the internal memory
-  u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
-  u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
-  u8g2.sendBuffer();					// transfer internal memory to the display
+  if( millis()-lastLEDUpdate > UI_LED ){
+    updateLED();
+    lastLEDUpdate = millis();
+  } 
+  
+  if( millis()-lastControlUpdate > UI_CONTROL ){
+    updateControlValues();
+    lastControlUpdate = millis();
+  } 
+  
+  if( millis()-lastWSUpdate > UI_WS ){
+    sendState();
+    lastWSUpdate = millis();
+  } 
+  
   webSocket.loop();
-  //To update Json: root["control.motorspeed1"] = RawJson(sensor);
-  /*unsigned long last update = millis();
-  */
-  delay(1000);
+  
 }
