@@ -117,6 +117,11 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 void setup() {
+
+  strip.begin();
+  strip.setBrightness(20);
+  strip.setPixelColor(0,strip.Color(0,0,0));
+  strip.show(); // Initialize all pixels to 'off'
  
   // USE_SERIAL.begin(921600);
   USE_SERIAL.begin(115200);
@@ -147,11 +152,6 @@ void setup() {
   while(WiFiMulti.run() != WL_CONNECTED) {
     delay(100);
   }
-
-  strip.begin();
-  strip.setBrightness(20);
-  strip.setPixelColor(0,strip.Color(0,0,0));
-  strip.show(); // Initialize all pixels to 'off'
 
   // server address, port and URL
   webSocket.begin("192.168.1.150",1234, "/");

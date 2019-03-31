@@ -1,0 +1,1 @@
+#define DICTIONARY F("{'control.offloadmotorspeed': 0, 'control.digmotorspeed': 0, 'control.arm1speed': 0, 'control.motor1speed': 0, 'control.motor2speed': 0, 'control.motor3speed': 0, 'control.arm2speed': 0, 'control.motor4speed': 0}")
