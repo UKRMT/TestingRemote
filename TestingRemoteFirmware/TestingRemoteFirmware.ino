@@ -39,7 +39,7 @@
 #define UI_DISPLAY  1000
 #define UI_LED      1000
 #define UI_CONTROL  200
-#define UI_WS       1000
+#define UI_WS       250
 unsigned long lastDisplayUpdate = 0;
 unsigned long lastLEDUpdate = 0;
 unsigned long lastControlUpdate = 0;
@@ -215,8 +215,9 @@ void updateLED() {
 }
 
 void updateControlValues() {
-  doc["control.motor1speed"] = ads.readADC_SingleEnded(0) >> 2;
-  doc["control.motor2speed"] = ads.readADC_SingleEnded(1) >> 2;
+  doc["control.motor1speed"] = ads.readADC_SingleEnded(1) >> 2;
+  delay(2);
+  doc["control.motor2speed"] = ads.readADC_SingleEnded(0) >> 2;
   doc["control.motor3speed"] = analogRead(A2);
   doc["control.motor4speed"] = analogRead(A3);
   
@@ -246,17 +247,20 @@ void loop() {
     updateDisplay();
     lastDisplayUpdate = now;
   } 
-  
+
+  now = millis();
   if( now-lastLEDUpdate > UI_LED ){
     updateLED();
     lastLEDUpdate = now;
   } 
-  
+
+  now = millis();
   if( now-lastControlUpdate > UI_CONTROL ){
     updateControlValues();
     lastControlUpdate = now;
   } 
-  
+
+  now = millis();
   if( now-lastWSUpdate > UI_WS ){
     sendState();
     lastWSUpdate = now;
