@@ -1,10 +1,11 @@
-#include <ArduinoJson.h>
-
 /*
- * WebSocketClient.ino
- *
- *  Created on: 24.05.2015
- *
+ * Firmware for UKRMT KATS Testing Remote
+ * Matt Ruffner 
+ * Damien Lawhorn
+ * 
+ * March 2019
+ * http://github.com/ukrmt/testingremote
+ * http://github.com/ukrmt/marsbotcontrol
  */
 
 #include <Arduino.h>
@@ -19,8 +20,11 @@
 #include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 #include <WebSocketsClient.h>
-#include <Adafruit_NeoPixel.h>
 #include <Adafruit_ADS1015.h>
+#include <NeoPixelAnimator.h>
+#include <NeoPixelBrightnessBus.h>
+#include <NeoPixelBus.h>
+#include <ArduinoJson.h>
 #include "dictionary.h"
 
 #define DigDwn 33
@@ -49,7 +53,10 @@ unsigned long lastWSUpdate = 0;
 WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, LED, NEO_RGB + NEO_KHZ800);
+NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(1, LED);
+
+RgbColor red(128,0,0);
+RgbColor green(0,128,0);
 
 Adafruit_ADS1115 ads;
 
@@ -118,10 +125,8 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
 void setup() {
 
-  strip.begin();
-  strip.setBrightness(20);
-  strip.setPixelColor(0,strip.Color(0,0,0));
-  strip.show(); // Initialize all pixels to 'off'
+  strip.Begin();
+  strip.Show(); // Initialize all pixels to 'off'
  
   // USE_SERIAL.begin(921600);
   USE_SERIAL.begin(115200);
@@ -204,28 +209,35 @@ void updateDisplay() {
 void updateLED() {
   // TODO: switch LED state
   if( wsConnected ){
-    Serial.println("led should be green");
-    strip.setPixelColor(0, strip.Color(0,150,0)); // Moderately bright green color.
-    strip.show();
+    strip.SetPixelColor(0, green); // Moderately bright green color.
+    strip.Show();
   } else {
-    Serial.println("led should be green");
-    strip.setPixelColor(0, strip.Color(150,0,0)); // Moderately bright green color.
-    strip.show();
+    strip.SetPixelColor(0, red); // Moderately bright red color.
+    strip.Show();
   }
 }
 
 void updateControlValues() {
-  doc["control.motor1speed"] = ads.readADC_SingleEnded(1) >> 2;
+// old config  
+//  doc["control.motor1speed"] = ads.readADC_SingleEnded(1) >> 2;
+//  delay(2);
+//  doc["control.motor2speed"] = ads.readADC_SingleEnded(0) >> 2;
+//  doc["control.motor3speed"] = analogRead(A2);
+//  doc["control.motor4speed"] = analogRead(A3);
+
+  // new config
+  doc["control.motor1speed"] = analogRead(A2);
+  doc["control.motor2speed"] = doc["control.motor1speed"];
+  doc["control.motor3speed"] = analogRead(A3);
+  doc["control.motor4speed"] = doc["control.motor3speed"];
+  
+  doc["control.offloadmotorspeed"] = ads.readADC_SingleEnded(1) >> 2;
   delay(2);
-  doc["control.motor2speed"] = ads.readADC_SingleEnded(0) >> 2;
-  doc["control.motor3speed"] = analogRead(A2);
-  doc["control.motor4speed"] = analogRead(A3);
+  doc["control.digmotorspeed"] = ads.readADC_SingleEnded(0) >> 2;
+  delay(2);
   
-  doc["control.offloadmotorspeed"] = analogRead(A4);
-  doc["control.digmotorspeed"] = ads.readADC_SingleEnded(2) >> 2;
-  
-  doc["control.arm1speed"] = digitalRead(DigDwn);
-  doc["control.arm2speed"] = digitalRead(DigUp);
+  doc["control.digarmspeed"] = (digitalRead(DigDwn)==LOW) ? 0 : ((digitalRead(DigUp)==LOW) ? 4095 : 2000); 
+  doc["control.raisearmspeed"] = ads.readADC_SingleEnded(2) >> 2;
 }
 
 void sendState() {
@@ -241,29 +253,26 @@ void sendState() {
 }
 
 void loop() {
-  unsigned long now = millis();
+  unsigned long n = millis();
 
-  if( now-lastDisplayUpdate > UI_DISPLAY ){
+  if( n-lastDisplayUpdate > UI_DISPLAY ){
     updateDisplay();
-    lastDisplayUpdate = now;
+    lastDisplayUpdate = n;
   } 
 
-  now = millis();
-  if( now-lastLEDUpdate > UI_LED ){
+  if( n-lastLEDUpdate > UI_LED ){
     updateLED();
-    lastLEDUpdate = now;
+    lastLEDUpdate = n;
   } 
 
-  now = millis();
-  if( now-lastControlUpdate > UI_CONTROL ){
+  if( n-lastControlUpdate > UI_CONTROL ){
     updateControlValues();
-    lastControlUpdate = now;
+    lastControlUpdate = n;
   } 
 
-  now = millis();
-  if( now-lastWSUpdate > UI_WS ){
+  if( n-lastWSUpdate > UI_WS ){
     sendState();
-    lastWSUpdate = now;
+    lastWSUpdate = n;
   } 
   
   webSocket.loop();
